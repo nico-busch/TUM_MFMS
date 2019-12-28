@@ -1,16 +1,19 @@
 import pandas as pd
 import geopandas as gpd
-import glob
 
-all_files = glob.glob('data/trips/*.csv')
+base = 'https://s3.amazonaws.com/nyc-tlc/trip+data/'
+files = ['fhv_tripdata_2019-06.csv',
+         'fhvhv_tripdata_2019-06.csv',
+         'green_tripdata_2019-06.csv',
+         'yellow_tripdata_2019-06.csv']
 col_names = [['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
              ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
              ['lpep_pickup_datetime', 'lpep_dropoff_datetime', 'PULocationID', 'DOLocationID'],
              ['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'PULocationID', 'DOLocationID']]
 new_names = ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID']
-cols = dict(zip(all_files, col_names))
-df = pd.concat((pd.read_csv(f, usecols=cols[f], parse_dates=cols[f][:2]).
-               rename(columns=dict(zip(cols[f], new_names))) for f in all_files))
+cols = dict(zip(files, col_names))
+df = pd.concat((pd.read_csv(base + f, usecols=cols[f], parse_dates=cols[f][:2]).
+               rename(columns=dict(zip(cols[f], new_names))) for f in files))
 df['ground_travel_time'] = df['dropoff_datetime'] - df['pickup_datetime']
 df = df.groupby(['PULocationID', 'DOLocationID']).agg({'ground_travel_time': [pd.Series.mean, 'count']})
 df = df.drop([264, 265], level=0).drop([264, 265], level=1)
