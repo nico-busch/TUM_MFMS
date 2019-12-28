@@ -1,8 +1,17 @@
 import pandas as pd
 import geopandas as gpd
+import glob
 
-df = pd.read_csv('data/yellow_tripdata_2019-06.csv', parse_dates=['tpep_pickup_datetime', 'tpep_dropoff_datetime'])
-df['ground_travel_time'] = df['tpep_dropoff_datetime'] - df['tpep_pickup_datetime']
+all_files = glob.glob('data/trips/*.csv')
+col_names = [['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
+             ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
+             ['lpep_pickup_datetime', 'lpep_dropoff_datetime', 'PULocationID', 'DOLocationID'],
+             ['tpep_pickup_datetime', 'tpep_dropoff_datetime', 'PULocationID', 'DOLocationID']]
+new_names = ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID']
+cols = dict(zip(all_files, col_names))
+df = pd.concat((pd.read_csv(f, usecols=cols[f], parse_dates=cols[f][:2]).
+               rename(columns=dict(zip(cols[f], new_names))) for f in all_files))
+df['ground_travel_time'] = df['dropoff_datetime'] - df['pickup_datetime']
 df = df.groupby(['PULocationID', 'DOLocationID']).agg({'ground_travel_time': [pd.Series.mean, 'count']})
 df = df.drop([264, 265], level=0).drop([264, 265], level=1)
 df = df.reindex(pd.MultiIndex.from_product([range(1, df.index.get_level_values(0).max() + 1),

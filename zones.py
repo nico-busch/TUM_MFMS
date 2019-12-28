@@ -1,9 +1,9 @@
+import pandas as pd
 import geopandas as gpd
 from bokeh.plotting import figure, show
 from bokeh.models import GeoJSONDataSource, LogColorMapper
-from bokeh.palettes import Inferno10 as palette
+from bokeh.palettes import Cividis10 as palette
 from bokeh.tile_providers import get_provider, Vendors
-import pandas as pd
 
 df = pd.read_pickle('input.pkl')
 df = df.groupby(['PULocationID']).agg({('ground_travel_time', 'count'): 'sum'})
@@ -16,10 +16,9 @@ gdf = gdf.join(df, how='inner')
 
 source = GeoJSONDataSource(geojson=gdf.to_json())
 palette.reverse()
-tile_provider = get_provider(Vendors.CARTODBPOSITRON_RETINA)
 color_mapper = LogColorMapper(palette=palette)
-p = figure(title='New York Taxi Pickups',
-           x_axis_location=None, y_axis_location=None,
+tile_provider = get_provider(Vendors.CARTODBPOSITRON_RETINA)
+p = figure(x_axis_location=None, y_axis_location=None,
            tooltips=[('Borough', '@borough'), ('Zone', '@zone'), ('Pickups', '@count')])
 p.add_tile(tile_provider)
 
