@@ -1,5 +1,5 @@
 import pandas as pd
-import gurobipy
+from gurobipy import *
 
 df = pd.read_pickle('input.pkl')
 
