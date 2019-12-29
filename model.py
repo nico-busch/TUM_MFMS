@@ -6,3 +6,115 @@ df = pd.read_pickle('input.pkl')
 demand = df[('ground_travel_time', 'count')].to_numpy()
 ground_travel_time = df[('ground_travel_time', 'mean')].to_numpy()
 air_travel_time = df['air_travel_time'].to_numpy()
+
+
+class Gurobi:
+
+    def __init__(self, prob):
+
+        # Input
+
+
+        # Output
+        self.solutions = np.empty(0)
+        self.runtimes = np.empty(0)
+
+    def solve(self):
+        model = Model()
+
+        # Creation of decision variables
+        x_ik = {}
+        for i in range(self.prob.n):
+            for k in range(self.prob.m):
+                x_ik[i, k] = model.addVar(lb=0.0, ub=1.0, vtype=GRB.BINARY, name=f'x_i[{i},{k}]')
+
+        y_ij = {}
+        for i in range(self.prob.n):
+            for j in range(self.prob.n):
+                y_ij[i, j] = model.addVar(lb=0.0, ub=1.0, vtype=GRB.BINARY, name=f'y_i[{i},{j}]')
+
+        z_ijkl = {}
+        for i in range(self.prob.n):
+            for j in range(self.prob.n):
+                for k in range(self.prob.m):
+                    for l in range(self.prob.m):
+                        z_ijkl[i, j, k, l] = model.addVar(lb=0.0, ub=1.0, vtype=GRB.BINARY,
+                                                          name=f'z_ijkl[{i},{j},{k},{l}]')
+
+        c_i = {}
+        for i in range(self.prob.n):
+            c_i[i] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f'c_i[{i}]')
+
+        model.update()
+
+        objective = quicksum(self.prob.f[i, j] * self.prob.w[k, l] * z_ijkl[i, j, k, l]
+                             for i in range(self.prob.n)
+                             for j in range(self.prob.n)
+                             for k in range(self.prob.m)
+                             for l in range(self.prob.m)) + \
+                    quicksum(self.prob.p[i] * (c_i[i] - self.prob.a[i])
+                             for i in range(self.prob.n))
+
+        # minimize objective function
+        model.setObjective(objective, GRB.MINIMIZE)
+
+        # constraints
+
+        # c1
+        model.addConstrs(quicksum(x_ik[i, k] for k in range(self.prob.m)) == 1 for i in range(self.prob.n))
+
+        # c2
+        model.addConstrs(z_ijkl[i, j, k, l] <= x_ik[i, k]
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n)
+                         for k in range(self.prob.m)
+                         for l in range(self.prob.m))
+
+        # c3
+        model.addConstrs(z_ijkl[i, j, k, l] <= x_ik[j, l]
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n)
+                         for k in range(self.prob.m)
+                         for l in range(self.prob.m))
+
+        # c4
+        model.addConstrs(x_ik[i, k] + x_ik[j, l] - 1 <= z_ijkl[i, j, k, l]
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n)
+                         for k in range(self.prob.m)
+                         for l in range(self.prob.m))
+
+        # c5
+        model.addConstrs(c_i[i] >= self.prob.a[i] for i in range(self.prob.n))
+
+        # c6
+        model.addConstrs(c_i[i] <= self.prob.b[i] - self.prob.d[i] for i in range(self.prob.n))
+
+        # c7 - BIG M 1
+        model.addConstrs((c_i[i] + self.prob.d[i]) - c_i[j] + y_ij[i, j] * self.M >= 0
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n))
+
+        # c8 - BIG M 2
+        model.addConstrs((c_i[i] + self.prob.d[i]) - c_i[j] - (1 - y_ij[i, j]) * self.M <= 0
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n))
+
+        # c9
+        model.addConstrs(y_ij[i, j] + y_ij[j, i] >= z_ijkl[i, j, k, k]
+                         for k in range(self.prob.m)
+                         for i in range(self.prob.n)
+                         for j in range(self.prob.n)
+                         if i != j)
+
+        def callback_results(model, where):
+            if where == GRB.Callback.MIPSOL:
+                sol = model.cbGet(GRB.Callback.MIPSOL_OBJ)
+                time = model.cbGet(GRB.Callback.RUNTIME)
+                self.solutions = np.append(self.solutions, sol)
+                self.runtimes = np.append(self.runtimes, time)
+
+        model.update()
+        model.setParam('TimeLimit', 1800)
+        model.optimize(callback_results)
+        # model.computeIIS()
