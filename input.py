@@ -17,10 +17,9 @@ df = pd.concat((pd.read_csv(base + f, usecols=cols[f], parse_dates=cols[f][:2])
                .rename(columns=dict(zip(cols[f], new_names))) for f in files))
 df['ground_travel_time'] = df['dropoff_datetime'] - df['pickup_datetime']
 df = df.groupby(['PULocationID', 'DOLocationID']).agg({'ground_travel_time': [pd.Series.mean, 'count']})
+df.columns = ['ground_travel_time', 'n_trips']
+# zones 264 and 265 do not exist
 df = df.drop([264, 265], level=0).drop([264, 265], level=1)
-df = df.reindex(pd.MultiIndex.from_product([range(1, df.index.get_level_values(0).max() + 1),
-                                            range(1, df.index.get_level_values(1).max() + 1)],
-                                           names=['PULocationID', 'DOLocationID']), fill_value=0)
 
 gdf = gpd.read_file('https://s3.amazonaws.com/nyc-tlc/misc/taxi_zones.zip')
 gdf = gdf.set_index('OBJECTID')
