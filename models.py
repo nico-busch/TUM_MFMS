@@ -20,7 +20,7 @@ def model_a(df, p, alpha=0, beta=1):
     d = df['n_trips'].to_numpy().reshape(shape)
 
     # coefficients
-    x_coeff = (g[:, np.newaxis, :, np.newaxis] + g[:, np.newaxis, :] + a) * d[:, :, np.newaxis, np.newaxis]
+    x_coeff = (g[:, np.newaxis, :, np.newaxis] + g.T[:, np.newaxis, :] + a) * d[:, :, np.newaxis, np.newaxis]
     y_coeff = g * d
 
     # model
@@ -49,7 +49,11 @@ def model_a(df, p, alpha=0, beta=1):
 
     return df, hubs, obj
 
-def model_a_ga(df, p, n_pop, n_cross, n_tour, p_mut, n_iter=100, alpha=0, beta=1):
+def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0.5, n_gen=10 ** 2, n_rep=100):
+
+    start_time = timeit.default_timer()
+    print('Beginning Genetic Algorithm')
+    print('{:<10}{:>15}{:>10}'.format('Iter', 'Best Obj', 'Time'))
 
     # parameter preparation
     zones = df.index.get_level_values(0).unique()
@@ -59,56 +63,69 @@ def model_a_ga(df, p, n_pop, n_cross, n_tour, p_mut, n_iter=100, alpha=0, beta=1
     a = (df['air_travel_time'] / pd.to_timedelta(1, 'h')).to_numpy().reshape(shape) + 2 * alpha
     d = df['n_trips'].to_numpy().reshape(shape)
 
-    # initial solution
-    # initial_hubs = np.argsort(np.sum(g * d, axis=0) + np.sum(g * d, axis=1))[::-1][:p]
-    # pop = np.zeros([n_pop, n_zones], dtype=np.int64)
-    # pop[:, initial_hubs] = 1
-
+    # result arrays
     pop = np.zeros([n_pop, n_zones], dtype=np.int64)
-    initial_hubs = np.array([np.random.choice(n_zones, size=p, replace=False) for _ in range(n_pop)])
-    pop[np.arange(n_pop)[:, np.newaxis], initial_hubs] = 1
-    best_obj = np.inf
+    pop_obj = np.full(n_pop, np.inf)
     best_z = None
+    best_obj = np.inf
+    rep = 0
 
-    for x in range(n_iter):
+    # initial population
+    rng = np.random.generator.default_rng()
+    hubs_random = np.vstack([np.random.choice(n_zones, size=p, replace=False) for _ in range(n_pop - 1)])
+    hubs_guess = np.argsort(np.sum(g * d, axis=0) + np.sum(g * d, axis=1))[::-1][:p]
+    pop[np.arange(n_pop - 1)[:, np.newaxis], hubs_random] = 1
+    pop[n_pop - 1, hubs_guess] = 1
+
+    for x in range(n_gen):
 
         # fitness evaluation
         def fitness(z):
-            non_hubs = (1 - z).astype(np.bool_)
+            non_hubs = ~z.astype(np.bool_)
             a_ = a.copy()
             a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
             obj = np.sum(floyd_warshall(csgraph=csr_matrix(np.minimum(g, a_))) * d)
             return obj
-        pop_obj = np.apply_along_axis(fitness, 1, pop)
+        where = pop_obj == np.inf
+        pop_obj[where] = np.apply_along_axis(fitness, 1, pop[where])
 
         if np.amin(pop_obj) < best_obj:
             idx = np.argmin(pop_obj)
             best_obj = pop_obj[idx]
             best_z = pop[idx]
+            print('{:<10}{:>15.4f}{:>9.0f}{}'.format(x, best_obj, timeit.default_timer() - start_time, 's'))
+        else:
+            if rep >= n_rep:
+                break
+            rep += 1
 
         # selection
-        par = pop[np.argmin(pop_obj[np.random.randint(n_pop, size=[n_pop, n_tour])], axis=1)]
+        par = pop[np.argmin(pop_obj[np.random.randint(n_pop, size=[n_cross, n_tour])], axis=1)]
         par1, par2 = np.split(par, 2)
 
         # crossover
-        diff = par1 - par2
-        where = (diff != 0).any(axis=1)
-        idx1 = np.hstack([np.random.choice(np.where(diff[y] == 1)[0], 1) for y in range(diff.shape[0]) if where[y]])
-        idx2 = np.hstack(([np.random.choice(np.where(diff[y] == -1)[0], 1) for y in range(diff.shape[0]) if where[y]]))
         off1, off2 = par1.copy(), par2.copy()
-        off1[np.arange(off1.shape[0])[where], idx1], off2[np.arange(off2.shape[0])[where], idx1] = 0, 1
-        off1[np.arange(off1.shape[0])[where], idx2], off2[np.arange(off2.shape[0])[where], idx2] = 1, 0
+        diff = off1 - off2
+        n_off = diff.shape[0]
+        if (diff != 0).any():
+            where = (diff != 0).any(axis=1)
+            idx1 = np.hstack([np.random.choice(np.where(diff[y] == 1)[0], 1) for y in range(n_off) if where[y]])
+            idx2 = np.hstack(([np.random.choice(np.where(diff[y] == -1)[0], 1) for y in range(n_off) if where[y]]))
+            off1[np.arange(n_off)[where], idx1], off2[np.arange(n_off)[where], idx1] = 0, 1
+            off1[np.arange(n_off)[where], idx2], off2[np.arange(n_off)[where], idx2] = 1, 0
         off = np.vstack([off1, off2])
 
         # mutation
-        k = n_zones - p
-        idx1 = np.where(off == 0)[1].reshape(n_pop, k)[np.arange(n_pop), np.random.randint(k, size=n_pop)]
-        idx2 = np.where(off == 1)[1].reshape(n_pop, p)[np.arange(n_pop), np.random.randint(p, size=n_pop)]
         mut = off.copy()
-        mut[np.arange(n_pop), idx1], mut[np.arange(n_pop), idx2] = 1, 0
-        mut = np.where(np.random.rand(n_pop)[:, np.newaxis] <= p_mut, mut, off)
+        k = n_zones - p
+        idx1 = np.where(off == 0)[1].reshape(n_cross, k)[np.arange(n_cross), np.random.randint(k, size=n_cross)]
+        idx2 = np.where(off == 1)[1].reshape(n_cross, p)[np.arange(n_cross), np.random.randint(p, size=n_cross)]
+        mut[np.arange(n_cross), idx1], mut[np.arange(n_cross), idx2] = 1, 0
+        mut = np.where(np.random.rand(n_cross)[:, np.newaxis] <= p_mut, mut, off)
 
         # new generation
-        pop = mut
+        idx = np.argsort(pop_obj)[:n_pop - n_cross]
+        pop = np.vstack([pop[idx], mut])
+        pop_obj = np.hstack([pop_obj[idx], np.full(n_cross, np.inf)])
 
     return np.array(zones[best_z.astype(np.bool_)]), best_obj
