@@ -4,10 +4,10 @@ import geopandas as gpd
 def input_ny():
 
     base = 'https://s3.amazonaws.com/nyc-tlc/trip+data/'
-    files = ['fhv_tripdata_2019-06.csv',
-             'fhvhv_tripdata_2019-06.csv',
-             'green_tripdata_2019-06.csv',
-             'yellow_tripdata_2019-06.csv']
+    files = ['fhv_tripdata_2019-03.csv',
+             'fhvhv_tripdata_2019-03.csv',
+             'green_tripdata_2019-03.csv',
+             'yellow_tripdata_2019-03.csv']
     col_names = [['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
                  ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
                  ['lpep_pickup_datetime', 'lpep_dropoff_datetime', 'PULocationID', 'DOLocationID'],

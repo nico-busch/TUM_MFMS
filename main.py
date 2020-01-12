@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import models
 import viz
+import input
 
 df = pd.read_pickle('data/trips_ny.pkl')
 gdf = pd.read_pickle('data/zones_ny.pkl')
@@ -13,13 +14,13 @@ do = (df['ground_travel_time'] * df['n_trips']).groupby(['dropoff_location']).su
 zones = (pu + do).nlargest(n_zones).index.sort_values()
 df = df.loc[(zones, zones), :]
 df.index = df.index.remove_unused_levels()
-df = df.reindex(pd.MultiIndex.from_product([zones, zones]), fill_value=0)
+df = df.reindex(pd.MultiIndex.from_product([zones, zones], names=df.index.names), fill_value=0)
 
-df1, hubs1, obj1 = models.model_a(df, 5, 0, beta=1)
-df2, hubs2, obj2 = models.model_b(df, 5, 0, beta=1)
+hubs_ga, obj_ga = models.model_a_ga(df, 5, 10, n_cross=100, p_mut=1, n_tour=5, alpha=0, beta=1)
+df, hubs, obj = models.model_a(df, 5, alpha=0, beta=1)
+print(obj_ga, obj)
+print(hubs_ga, hubs)
+exit()
 
-print(hubs1, obj1)
-print(hubs2, obj2)
-
-# if hubs.size > 0:
-#     viz.viz_hubs(df, gdf, hubs)
+if hubs.size > 0:
+    viz.viz_hubs(df, gdf, hubs)
