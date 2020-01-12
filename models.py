@@ -81,8 +81,8 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
             a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
             obj = np.sum(floyd_warshall(csgraph=csr_matrix(np.minimum(g, a_))) * d)
             return obj
-        where = pop_obj == np.inf
-        pop_obj[where] = np.apply_along_axis(fitness, 1, pop[where])
+        inf = pop_obj == np.inf
+        pop_obj[inf] = np.apply_along_axis(fitness, 1, pop[inf])
 
         if np.amin(pop_obj) < best_obj:
             idx = np.argmin(pop_obj)
