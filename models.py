@@ -1,13 +1,9 @@
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import floyd_warshall, reconstruct_path
+from scipy.sparse.csgraph import floyd_warshall
 from gurobipy import *
 import timeit
-# start = timeit.default_timer()
-# print(timeit.default_timer() - start)
-# import sys
-# np.set_printoptions(threshold=sys.maxsize)
 
 def model_a(df, p, alpha=0, beta=1):
 
@@ -49,7 +45,7 @@ def model_a(df, p, alpha=0, beta=1):
 
     return df, hubs, obj
 
-def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0.5, n_gen=10 ** 2, n_rep=100):
+def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=10 ** 2, n_rep=100, p_mut=0.5):
 
     start_time = timeit.default_timer()
     print('Beginning Genetic Algorithm')
@@ -71,7 +67,6 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0
     rep = 0
 
     # initial population
-    rng = np.random.generator.default_rng()
     hubs_random = np.vstack([np.random.choice(n_zones, size=p, replace=False) for _ in range(n_pop - 1)])
     hubs_guess = np.argsort(np.sum(g * d, axis=0) + np.sum(g * d, axis=1))[::-1][:p]
     pop[np.arange(n_pop - 1)[:, np.newaxis], hubs_random] = 1
@@ -93,11 +88,12 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0
             idx = np.argmin(pop_obj)
             best_obj = pop_obj[idx]
             best_z = pop[idx]
+            rep = 0
             print('{:<10}{:>15.4f}{:>9.0f}{}'.format(x, best_obj, timeit.default_timer() - start_time, 's'))
         else:
+            rep += 1
             if rep >= n_rep:
                 break
-            rep += 1
 
         # selection
         par = pop[np.argmin(pop_obj[np.random.randint(n_pop, size=[n_cross, n_tour])], axis=1)]
@@ -106,13 +102,12 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0
         # crossover
         off1, off2 = par1.copy(), par2.copy()
         diff = off1 - off2
-        n_off = diff.shape[0]
-        if (diff != 0).any():
-            where = (diff != 0).any(axis=1)
-            idx1 = np.hstack([np.random.choice(np.where(diff[y] == 1)[0], 1) for y in range(n_off) if where[y]])
-            idx2 = np.hstack(([np.random.choice(np.where(diff[y] == -1)[0], 1) for y in range(n_off) if where[y]]))
-            off1[np.arange(n_off)[where], idx1], off2[np.arange(n_off)[where], idx1] = 0, 1
-            off1[np.arange(n_off)[where], idx2], off2[np.arange(n_off)[where], idx2] = 1, 0
+        uneq = np.where(np.any(diff != 0, axis=1))[0]
+        if uneq.size > 0:
+            idx1 = np.hstack([np.random.choice(np.where(diff[y] > 0)[0], 1) for y in uneq])
+            idx2 = np.hstack([np.random.choice(np.where(diff[y] < 0)[0], 1) for y in uneq])
+            off1[uneq, idx1], off2[uneq, idx1] = 0, 1
+            off1[uneq, idx2], off2[uneq, idx2] = 1, 0
         off = np.vstack([off1, off2])
 
         # mutation
@@ -127,5 +122,9 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, p_mut=0
         idx = np.argsort(pop_obj)[:n_pop - n_cross]
         pop = np.vstack([pop[idx], mut])
         pop_obj = np.hstack([pop_obj[idx], np.full(n_cross, np.inf)])
+
+    print('Termination criterion reached')
+    print('{}{}'.format('Best objective value is ', best_obj))
+    print('{}{}'.format('Time is ', timeit.default_timer() - start_time))
 
     return np.array(zones[best_z.astype(np.bool_)]), best_obj
