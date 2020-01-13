@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import floyd_warshall
 from gurobipy import *
 import timeit
@@ -45,11 +44,11 @@ def model_a(df, p, alpha=0, beta=1):
 
     return df, hubs, obj
 
-def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=10 ** 2, n_rep=100, p_mut=0.5):
+def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=10 ** 3, n_rep=100, p_mut=0.5):
 
     start_time = timeit.default_timer()
     print('Beginning Genetic Algorithm')
-    print('{:<10}{:>15}{:>10}'.format('Iter', 'Best Obj', 'Time'))
+    print('{:<10}{:>15}{:>10}'.format('Gen', 'Best Fitness', 'Time'))
 
     # parameter preparation
     zones = df.index.get_level_values(0).unique()
@@ -67,10 +66,11 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
     rep = 0
 
     # initial population
-    hubs_random = np.vstack([np.random.choice(n_zones, size=p, replace=False) for _ in range(n_pop - 1)])
-    hubs_guess = np.argsort(np.sum(g * d, axis=0) + np.sum(g * d, axis=1))[::-1][:p]
-    pop[np.arange(n_pop - 1)[:, np.newaxis], hubs_random] = 1
-    pop[n_pop - 1, hubs_guess] = 1
+    hubs_random = np.vstack([np.random.choice(n_zones, size=p, replace=False) for _ in range(n_pop // 3 * 2)])
+    idx = np.argsort(np.sum(g * d, axis=0) + np.sum(g * d, axis=1))[::-1][:np.maximum(n_zones // 10, p)]
+    hubs_guess = np.vstack([np.random.choice(idx, size=p, replace=False) for _ in range(n_pop // 3)])
+    pop[np.arange(n_pop // 3 * 2)[:, np.newaxis], hubs_random] = 1
+    pop[np.arange(n_pop // 3 * 2, n_pop)[:, np.newaxis], hubs_guess] = 1
 
     for x in range(n_gen):
 
@@ -79,7 +79,7 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
             non_hubs = ~z.astype(np.bool_)
             a_ = a.copy()
             a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
-            obj = np.sum(floyd_warshall(csgraph=csr_matrix(np.minimum(g, a_))) * d)
+            obj = np.sum(floyd_warshall(np.minimum(g, a_)) * d)
             return obj
         inf = pop_obj == np.inf
         pop_obj[inf] = np.apply_along_axis(fitness, 1, pop[inf])
@@ -96,7 +96,8 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
                 break
 
         # selection
-        par = pop[np.argmin(pop_obj[np.random.randint(n_pop, size=[n_cross, n_tour])], axis=1)]
+        tour = np.random.randint(n_pop, size=[n_cross, n_tour])
+        par = pop[tour[np.arange(n_cross), np.argmin(pop_obj[tour], axis=1)]]
         par1, par2 = np.split(par, 2)
 
         # crossover
