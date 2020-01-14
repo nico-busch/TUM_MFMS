@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import models
 import viz
-import viz_2
 import input
 import sys
 
@@ -45,7 +44,7 @@ def path(p, i, j):
     return tuple_
 '''
 
-paths = pd.Series({(zones[i], zones[j]): path(pred, i, j) for i in range(zones.size) for j in range(zones.size)},
+paths = pd.Series({(zones[i], zones[j]): createPaths(pred, i, j) for i in range(zones.size) for j in range(zones.size)},
                   name='paths')
 
 np.set_printoptions(threshold=sys.maxsize)
