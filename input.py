@@ -37,8 +37,13 @@ def input_ny():
     df['air_travel_time'] = pd.to_timedelta(df['distance'] / speed, 'h')
     df = df.drop('distance', 1)
 
+    idx = df.index.get_level_values(0).unique().union(df.index.get_level_values(0).unique())
+    df = df.reindex(pd.MultiIndex.from_product([idx, idx], names=df.index.names), fill_value=0)
+
     df.to_pickle('data/trips_ny.pkl')
     gdf.to_pickle('data/zones_ny.pkl')
+
+    return df, gdf
 
 
 def input_chicago():
