@@ -2,7 +2,6 @@ import pandas as pd
 from bokeh.io import output_file
 from bokeh.plotting import figure, show
 from bokeh.models import GeoJSONDataSource, LinearColorMapper, ColorBar, NumeralTickFormatter, HoverTool
-from bokeh.palettes import Viridis256 as palette
 from bokeh.tile_providers import get_provider, Vendors
 
 def viz_zones(df, gdf):
@@ -18,6 +17,7 @@ def viz_zones(df, gdf):
     gdf = gdf.explode()
 
     source_zones = GeoJSONDataSource(geojson=gdf.to_json())
+    from bokeh.palettes import Viridis256 as palette
     palette.reverse()
     color_mapper = LinearColorMapper(palette=palette[50:], low=gdf['vehicle_hrs'].min(), high=gdf['vehicle_hrs'].max())
     tile_provider = get_provider(Vendors.CARTODBPOSITRON_RETINA)
@@ -57,9 +57,7 @@ def viz_hubs(df, gdf, hubs):
 
     source_zones = GeoJSONDataSource(geojson=gdf.to_json())
     source_hubs = GeoJSONDataSource(geojson=gdf_hubs.to_json())
-
-    print(source_hubs)
-
+    from bokeh.palettes import Viridis256 as palette
     palette.reverse()
     color_mapper = LinearColorMapper(palette=palette[50:], low=gdf['vehicle_hrs'].min(), high=gdf['vehicle_hrs'].max())
     tile_provider = get_provider(Vendors.CARTODBPOSITRON_RETINA)
@@ -78,7 +76,7 @@ def viz_hubs(df, gdf, hubs):
     hover = HoverTool(renderers=[zones],
                       tooltips=[('Borough', '@borough'),
                                 ('Zone', '@zone'),
-                                ('Pickup Vehicle Hours', '@vehicle_hrs{int}')])
+                                ('Total Vehicle Hours', '@vehicle_hrs{int}')])
     p.add_tools(hover)
     p.add_layout(color_bar, 'below')
     p.hover.point_policy = "follow_mouse"

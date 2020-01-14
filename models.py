@@ -36,7 +36,7 @@ def model_a(df, p, alpha=0, beta=1):
     model.optimize()
 
     # solution
-    trips = pd.Series({(k1, k2): (k3, k4) for (k1, k2, k3, k4), v in x.items() if v.X == 1}, name='hubs')
+    trips = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X == 1}, name='hubs')
     trips.index.names = df.index.names
     df = df.join(trips, how='left')
     hubs = np.array([k for k, v in z.items() if v.X == 1])
