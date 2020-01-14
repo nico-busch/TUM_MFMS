@@ -58,6 +58,9 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
     a = (df['air_travel_time'] / pd.to_timedelta(1, 'h')).to_numpy().reshape(shape) + 2 * alpha
     d = df['n_trips'].to_numpy().reshape(shape)
 
+    # todo add in [OLI]
+    np.save('d_matrix', d)
+
     # result arrays
     pop = np.zeros([n_pop, n_zones], dtype=np.int64)
     pop_obj = np.full(n_pop, np.inf)
@@ -128,4 +131,12 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
     print('{}{}'.format('Best objective value is ', best_obj))
     print('{}{}'.format('Time is ', timeit.default_timer() - start_time))
 
-    return np.array(zones[best_z.astype(np.bool_)]), best_obj
+    # Add-In OLI
+    # creation of the predecessor matrix
+    non_hubs = ~best_z.astype(np.bool_)
+    a_ = a.copy()
+    a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
+    tmp, pred = floyd_warshall(np.minimum(g, a_), return_predecessors=True)
+    tmp = tmp < g
+
+    return np.array(zones[best_z.astype(np.bool_)]), best_obj, pred, tmp

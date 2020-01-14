@@ -37,11 +37,14 @@ def input_ny():
     df['air_travel_time'] = pd.to_timedelta(df['distance'] / speed, 'h')
     df = df.drop('distance', 1)
 
-    df.to_pickle('data/trips_ny.pkl')
-    gdf.to_pickle('data/zones_ny.pkl')
+    df.to_pickle('data/trips_ny_2.pkl')
+    gdf.to_pickle('data/zones_ny_2.pkl')
 
 
 def input_chicago():
 
     gdf = gpd.read_file('https://data.cityofchicago.org/api/geospatial/cauq-8yn6?method=export&format=GeoJSON')
     gdf = gdf.to_crs({'init': 'epsg:26971'})
+
+
+#input_ny()

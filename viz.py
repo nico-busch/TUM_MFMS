@@ -57,6 +57,9 @@ def viz_hubs(df, gdf, hubs):
 
     source_zones = GeoJSONDataSource(geojson=gdf.to_json())
     source_hubs = GeoJSONDataSource(geojson=gdf_hubs.to_json())
+
+    print(source_hubs)
+
     palette.reverse()
     color_mapper = LinearColorMapper(palette=palette[50:], low=gdf['vehicle_hrs'].min(), high=gdf['vehicle_hrs'].max())
     tile_provider = get_provider(Vendors.CARTODBPOSITRON_RETINA)
