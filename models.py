@@ -36,13 +36,18 @@ def model_a(df, p, alpha=0, beta=1):
     model.optimize()
 
     # solution
-    trips = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X == 1}, name='hubs')
+    hubs_loc = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X == 1}, name='hubs')
+    travel_time = pd.Series({**{(k1, k2): x_coeff[zones.get_loc(k1), zones.get_loc(k2),
+                                                  zones.get_loc(k3), zones.get_loc(k4)]
+                                for (k1, k2, k3, k4), v in x.items() if v.X == 1},
+                             **{(k1, k2): y_coeff[zones.get_loc(k1), zones.get_loc(k2)]
+                                for (k1, k2), v in y.items() if v.X == 1}}, name='travel_time')
+    trips = pd.concat([hubs_loc, travel_time], axis=1)
     trips.index.names = df.index.names
-    df = df.join(trips, how='left')
     hubs = np.array([k for k, v in z.items() if v.X == 1])
     obj = model.getObjective().getValue()
 
-    return df, hubs, obj
+    return obj, trips, hubs
 
 def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=10 ** 3, n_rep=100, p_mut=0.5):
 

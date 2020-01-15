@@ -48,11 +48,18 @@ def viz_hubs(df, gdf, hubs):
 
     pu = (df['ground_travel_time'] * df['n_trips']).groupby(['pickup_location']).sum()
     do = (df['ground_travel_time'] * df['n_trips']).groupby(['dropoff_location']).sum()
-    vehicle_hrs = ((pu + do)/ pd.to_timedelta(1, 'h')).rename('vehicle_hrs')
+    vehicle_hrs = ((pu + do) / pd.to_timedelta(1, 'h')).rename('vehicle_hrs')
+
+    df_air = df.dropna()
+    pu_air = (df_air['ground_travel_time'] * df_air['n_trips']).groupby(['pickup_location']).sum()
+    do_air = (df_air['ground_travel_time'] * df_air['n_trips']).groupby(['dropoff_location']).sum()
+    vehicle_hrs_air = ((pu_air + do_air) / pd.to_timedelta(1, 'h')).rename('vehicle_hrs_air')
 
     gdf = gdf.to_crs({'init': 'epsg:3857'})
-    gdf = gdf.join(vehicle_hrs, how='inner')
-    gdf_hubs = gdf.loc[hubs].centroid
+    gdf = gdf.join(vehicle_hrs, how='right')
+    gdf_hubs = gdf.loc[hubs]
+    gdf_hubs['geometry'] = gdf_hubs.centroid
+    gdf_hubs = gdf_hubs.join(vehicle_hrs_air / vehicle_hrs_air.max() * 15, how='left')
     gdf = gdf.explode()
 
     source_zones = GeoJSONDataSource(geojson=gdf.to_json())
@@ -67,7 +74,7 @@ def viz_hubs(df, gdf, hubs):
                       line_color="white", line_width=0.5,
                       fill_color={'field': 'vehicle_hrs', 'transform': color_mapper},
                       alpha=0.75)
-    p.circle('x', 'y', size=10, source=source_hubs, color="darkorange")
+    p.circle('x', 'y', source=source_hubs, size='vehicle_hrs_air', color="darkorange")
     color_bar = ColorBar(color_mapper=color_mapper,
                          location=(0, 0),
                          orientation='horizontal',
