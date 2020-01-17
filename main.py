@@ -19,8 +19,8 @@ df.index = df.index.remove_unused_levels()
 idx = df.index.get_level_values(0).unique().union(df.index.get_level_values(0).unique())
 df = df.reindex(pd.MultiIndex.from_product([zones, zones], names=df.index.names), fill_value=0)
 
-results = study.sensitivity_analysis(df)
-results.to_pickle('results/results.pkl')
+# results = study.sensitivity_analysis(df)
+# results.to_pickle('results/results.pkl')
 
 results = pd.read_pickle('results/results.pkl')
 plots.plot_travel_time(results)

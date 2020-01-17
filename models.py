@@ -36,14 +36,11 @@ def model_a(df, p, alpha=0, beta=1):
     model.optimize()
 
     # solution
-    hubs_loc = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X == 1}, name='hubs')
-    travel_time = pd.Series({**{(k1, k2): x_coeff[zones.get_loc(k1), zones.get_loc(k2),
-                                                  zones.get_loc(k3), zones.get_loc(k4)]
-                                for (k1, k2, k3, k4), v in x.items() if v.X == 1},
-                             **{(k1, k2): y_coeff[zones.get_loc(k1), zones.get_loc(k2)]
-                                for (k1, k2), v in y.items() if v.X == 1}}, name='travel_time')
+    hubs_loc = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X >= 0.5}, name='hubs')
+    travel_time = pd.Series({**{(k1, k2): v.Obj for (k1, k2, k3, k4), v in x.items() if v.X >= 0.5},
+                             **{(k1, k2): v.Obj for (k1, k2), v in y.items() if v.X >= 0.5}}, name='travel_time')
     trips = pd.concat([hubs_loc, travel_time], axis=1)
-    trips.index.names = df.index.names
+    trips.index = pd.MultiIndex.from_tuples(trips.index, names=df.index.names)
     hubs = np.array([k for k, v in z.items() if v.X == 1])
     obj = model.getObjective().getValue()
 
