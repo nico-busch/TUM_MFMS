@@ -5,7 +5,18 @@ import viz
 import input
 import sys
 
-df = pd.read_pickle('results/df.pkl')
+data = pd.read_pickle('data/trips_ny.pkl')
+
+total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
+        (data['ground_travel_time'] * data['n_trips']).groupby(['dropoff_location']).sum()
+
+n_zones = 50
+zones = total.nlargest(n_zones).index.sort_values()
+data_ = data.loc[(zones, zones), :]
+data_.index = data_.index.remove_unused_levels()
+data_ = data_.reindex(pd.MultiIndex.from_product([zones, zones], names=data_.index.names), fill_value=0)
+
+_, _, df = models.model_a_ga(data_, 5)
 
 # create df_hubs for counting all trips going through a hub connection
 un = df['hubs'].unique()
