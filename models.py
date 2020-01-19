@@ -36,15 +36,10 @@ def model_a(df, p, alpha=0, beta=1):
     model.optimize()
 
     # solution
-    hubs_loc = pd.Series({(k1, k2): [k3, k4] for (k1, k2, k3, k4), v in x.items() if v.X >= 0.5}, name='hubs')
-    travel_time = pd.Series({**{(k1, k2): v.Obj for (k1, k2, k3, k4), v in x.items() if v.X >= 0.5},
-                             **{(k1, k2): v.Obj for (k1, k2), v in y.items() if v.X >= 0.5}}, name='travel_time')
-    trips = pd.concat([hubs_loc, travel_time], axis=1)
-    trips.index = pd.MultiIndex.from_tuples(trips.index, names=df.index.names)
     hubs = np.array([k for k, v in z.items() if v.X == 1])
-    obj = model.getObjective().getValue()
+    best_obj = model.getObjective().getValue()
 
-    return obj, trips, hubs
+    return best_obj, hubs
 
 def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=10 ** 3, n_rep=100, p_mut=0.5):
 
@@ -79,9 +74,9 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
         # fitness evaluation
         def fitness(z):
             non_hubs = ~z.astype(np.bool_)
-            a_ = a.copy()
-            a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
-            obj = np.sum(floyd_warshall(np.minimum(g, a_)) * d)
+            a_hubs = a.copy()
+            a_hubs[non_hubs, :], a_hubs[:, non_hubs] = np.inf, np.inf
+            obj = np.sum(floyd_warshall(np.minimum(g, a_hubs)) * d)
             return obj
         inf = pop_obj == np.inf
         pop_obj[inf] = np.apply_along_axis(fitness, 1, pop[inf])
@@ -130,12 +125,25 @@ def model_a_ga(df, p, alpha=0, beta=1, n_pop=150, n_cross=100, n_tour=5, n_gen=1
     print('{}{}'.format('Best objective value is ', best_obj))
     print('{}{}'.format('Time is ', timeit.default_timer() - start_time))
 
-    # Add-In OLI
-    # creation of the predecessor matrix
-    non_hubs = ~best_z.astype(np.bool_)
-    a_ = a.copy()
-    a_[non_hubs, :], a_[:, non_hubs] = np.inf, np.inf
-    tmp, pred = floyd_warshall(np.minimum(g, a_), return_predecessors=True)
-    tmp = tmp < g
+    # results
+    non_hubs_ = ~best_z.astype(np.bool_)
+    a_hubs_ = a.copy()
+    a_hubs_[non_hubs_, :], a_hubs_[:, non_hubs_] = np.inf, np.inf
+    idx = a_hubs_ <= g
+    dist, pred = floyd_warshall(np.minimum(g, a_hubs_), return_predecessors=True)
+    hubs = np.array(zones[best_z.astype(np.bool_)])
 
-    return np.array(zones[best_z.astype(np.bool_)]), best_obj, pred, tmp
+    def get_hubs(i, j):
+        if pred[i, j] == -9999:
+            return np.NAN
+        elif np.all(np.isin([zones[pred[i, j]], zones[j]], hubs)) and idx[pred[i, j], j]:
+            return zones[pred[i, j]], zones[j]
+        else:
+            return get_hubs(i, pred[i, j])
+
+    hubs_loc = pd.Series({(i, j): get_hubs(zones.get_loc(i), zones.get_loc(j))
+                         for i in zones for j in zones}, name='hubs')
+    travel_time = pd.to_timedelta(pd.Series(np.ravel(dist), index=df.index, name='travel_time'), 'h')
+    trips = pd.concat([travel_time, hubs_loc, df['n_trips']], axis=1)
+
+    return best_obj, hubs, trips

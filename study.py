@@ -1,6 +1,7 @@
 import pandas as pd
 from itertools import product
 import models
+import timeit
 
 def sensitivity_analysis(df):
 
@@ -12,9 +13,41 @@ def sensitivity_analysis(df):
     results = results.set_index(['p', 'alpha', 'beta'])
 
     for p, alpha, beta in product(p, alpha, beta):
-        obj, trips, hubs = models.model_a(df, p, alpha=alpha, beta=beta)
-        air_travel_time = trips.loc[trips['hubs'].notna(), 'travel_time'].sum()
-        ground_travel_time = trips.loc[trips['hubs'].isna(), 'travel_time'].sum()
-        results.loc[p, alpha, beta, ] = obj, air_travel_time, ground_travel_time, hubs
+        obj, hubs, trips = models.model_a_ga(df, p, alpha=alpha, beta=beta)
+        air_travel_time = (trips.loc[trips['hubs'].notna(), 'n_trips'] *
+                           trips.loc[trips['hubs'].notna(), 'travel_time']).sum() / pd.to_timedelta(1, 'h')
+        # n_trips = trips.groupby('hubs')['n_trips'].sum()
+        # n_trips.index = pd.MultiIndex.from_tuples(n_trips.index, names=df.index.names)
+        # air_travel_time = (n_trips * df[df.index.isin(n_trips.index)]['air_travel_time']).sum()
+        ground_travel_time = obj - air_travel_time
+        results.loc[p, alpha, beta] = obj, air_travel_time, ground_travel_time, hubs
+
+    return results
+
+def gurobi_vs_ga(df):
+
+    n_zones = [10, 20, 30, 40, 50]
+    p = [2, 5, 8]
+
+    results = pd.DataFrame(columns=['method', 'n_zones', 'p', 'obj', 'runtime'])
+    results = results.set_index(['method', 'n_zones', 'p'])
+
+    total = (df['ground_travel_time'] * df['n_trips']).groupby(['pickup_location']).sum() + \
+            (df['ground_travel_time'] * df['n_trips']).groupby(['dropoff_location']).sum()
+
+    for n_zones, p in product(n_zones, p):
+
+        zones = total.nlargest(n_zones).index.sort_values()
+        df_ = df.loc[(zones, zones), :]
+        df_.index = df_.index.remove_unused_levels()
+        df_ = df_.reindex(pd.MultiIndex.from_product([zones, zones], names=df_.index.names), fill_value=0)
+
+        start_time = timeit.default_timer()
+        obj, _ = models.model_a(df_, p)
+        results.loc['Gurobi', n_zones, p] = obj, timeit.default_timer() - start_time
+
+        start_time = timeit.default_timer()
+        obj, _, _ = models.model_a_ga(df_, p)
+        results.loc['GA', n_zones, p] = obj, timeit.default_timer() - start_time
 
     return results
