@@ -50,3 +50,13 @@ def plot_travel_time(results):
     plt.subplots_adjust(wspace=0.05, hspace=0.15)
     fig.legend(handles, labels, loc='upper center')
     plt.show()
+
+def plot_gurobi_vs_ga(results):
+    fig, ax = plt.subplots()
+
+    for (method, p), x in results.groupby(['method', 'p']):
+        ax.plot(x.index.get_level_values('n_zones'), x['runtime'], marker='o')
+
+    ax.set_xlabel('number of hubs')
+    ax.set_ylabel('runtime')
+    plt.show()
