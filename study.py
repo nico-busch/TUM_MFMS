@@ -40,7 +40,6 @@ def gurobi_vs_ga(df):
         zones = total.nlargest(n_zones).index.sort_values()
         df_ = df.loc[(zones, zones), :]
         df_.index = df_.index.remove_unused_levels()
-        df_ = df_.reindex(pd.MultiIndex.from_product([zones, zones], names=df_.index.names), fill_value=0)
 
         start_time = timeit.default_timer()
         obj, _ = models.model_a(df_, p)

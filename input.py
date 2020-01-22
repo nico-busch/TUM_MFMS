@@ -5,10 +5,10 @@ import geopandas as gpd
 def input_ny():
 
     base = 'https://s3.amazonaws.com/nyc-tlc/trip+data/'
-    files = ['fhv_tripdata_2019-03.csv',
-             'fhvhv_tripdata_2019-03.csv',
-             'green_tripdata_2019-03.csv',
-             'yellow_tripdata_2019-03.csv']
+    files = ['fhv_tripdata_2019-06.csv',
+             'fhvhv_tripdata_2019-06.csv',
+             'green_tripdata_2019-06.csv',
+             'yellow_tripdata_2019-06.csv']
     col_names = [['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
                  ['pickup_datetime', 'dropoff_datetime', 'PULocationID', 'DOLocationID'],
                  ['lpep_pickup_datetime', 'lpep_dropoff_datetime', 'PULocationID', 'DOLocationID'],
@@ -19,6 +19,9 @@ def input_ny():
     date_parser = lambda x: pd.to_datetime(x, errors='coerce')
     df = pd.concat((pd.read_csv(base + f, usecols=cols[f], parse_dates=cols[f][:2], date_parser=date_parser)
                    .rename(columns=dict(zip(cols[f], new_names))) for f in files))
+
+    print('hi')
+
     df = df.dropna()
     df['ground_travel_time'] = df['dropoff_datetime'] - df['pickup_datetime']
     df = df.groupby(['pickup_location', 'dropoff_location']).agg({'ground_travel_time': [pd.Series.mean, 'count']})
@@ -38,11 +41,8 @@ def input_ny():
     df['air_travel_time'] = pd.to_timedelta(df['distance'] / speed, 'h')
     df = df.drop('distance', 1)
 
-    idx = df.index.get_level_values(0).unique().union(df.index.get_level_values(0).unique())
+    idx = df.index.get_level_values(0).unique().intersection(df.index.get_level_values(1).unique())
     df = df.reindex(pd.MultiIndex.from_product([idx, idx], names=df.index.names), fill_value=0)
-
-    df.to_pickle('data/trips_ny.pkl')
-    gdf.to_pickle('data/zones_ny.pkl')
 
     return df, gdf
 
@@ -76,8 +76,7 @@ def input_chicago():
     df['air_travel_time'] = pd.to_timedelta(df['distance'] / speed, 'h')
     df = df.drop('distance', 1)
 
-    idx = df.index.get_level_values(0).unique().union(df.index.get_level_values(0).unique())
+    idx = df.index.get_level_values(0).unique().union(df.index.get_level_values(1).unique())
     df = df.reindex(pd.MultiIndex.from_product([idx, idx], names=df.index.names), fill_value=0)
 
-    df.to_pickle('data/trips_chicago.pkl')
-    gdf.to_pickle('data/zones_chicago.pkl')
+    return df, gdf
