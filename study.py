@@ -26,8 +26,8 @@ def sensitivity_analysis(df):
 
 def gurobi_vs_ga(df):
 
-    n_zones = [10, 20, 30, 40, 50]
-    p = [2, 5, 8]
+    n_zones = [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260]
+    p = [5]
 
     results = pd.DataFrame(columns=['method', 'n_zones', 'p', 'obj', 'runtime'])
     results = results.set_index(['method', 'n_zones', 'p'])
@@ -41,9 +41,9 @@ def gurobi_vs_ga(df):
         df_ = df.loc[(zones, zones), :]
         df_.index = df_.index.remove_unused_levels()
 
-        start_time = timeit.default_timer()
-        obj, _ = models.model_a(df_, p)
-        results.loc['Gurobi', n_zones, p] = obj, timeit.default_timer() - start_time
+        # start_time = timeit.default_timer()
+        # obj, _ = models.model_a(df_, p)
+        # results.loc['Gurobi', n_zones, p] = obj, timeit.default_timer() - start_time
 
         start_time = timeit.default_timer()
         obj, _, _ = models.model_a_ga(df_, p)
