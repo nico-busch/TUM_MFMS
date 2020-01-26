@@ -16,12 +16,13 @@ gdf = pd.read_pickle('data/zones_ny.pkl')
 # study.sensitivity_analysis(df).to_pickle('results/sensitivity_analysis.pkl')
 # study.gurobi_vs_ga(df).to_pickle('results/gurobi_vs_ga.pkl')
 
-results = pd.read_pickle('results/gurobi_vs_ga.pkl')
+# results = pd.read_pickle('results/gurobi_vs_ga.pkl')
 
-plots.plot_gurobi_vs_ga(results)
-exit()
-# plots.plot_obj(results)
-#
-obj, hubs, trips = models.model_a_ga(df, 10)
+# plots.plot_gurobi_vs_ga(results)
+# plots.plot_travel_time(results)
+
+# viz.viz_zones(df, gdf)
+
+obj, hubs, trips = models.model_a_ga(df, 20, alpha=5/60)
 viz.viz_hubs(df, gdf, hubs)
 

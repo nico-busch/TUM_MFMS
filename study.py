@@ -5,7 +5,7 @@ import timeit
 
 def sensitivity_analysis(df):
 
-    p = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    p = range(2, 21)
     alpha = [0, 5/60, 10/60]
     beta = [1, 1.1]
 
@@ -15,7 +15,7 @@ def sensitivity_analysis(df):
     for p, alpha, beta in product(p, alpha, beta):
         obj, hubs, trips = models.model_a_ga(df, p, alpha=alpha, beta=beta)
         air_travel_time = (trips.loc[trips['hubs'].notna(), 'n_trips'] *
-                           trips.loc[trips['hubs'].notna(), 'travel_time']).sum() / pd.to_timedelta(1, 'h')
+                           trips.loc[trips['hubs'].notna(), 'travel_time'] / pd.to_timedelta(1, 'h')).sum()
         # n_trips = trips.groupby('hubs')['n_trips'].sum()
         # n_trips.index = pd.MultiIndex.from_tuples(n_trips.index, names=df.index.names)
         # air_travel_time = (n_trips * df[df.index.isin(n_trips.index)]['air_travel_time']).sum()
@@ -26,7 +26,7 @@ def sensitivity_analysis(df):
 
 def gurobi_vs_ga(df):
 
-    n_zones = [60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260]
+    n_zones = range(10, df.index.get_level_values(0).unique().size, 10)
     p = [5]
 
     results = pd.DataFrame(columns=['method', 'n_zones', 'p', 'obj', 'runtime'])
@@ -41,9 +41,9 @@ def gurobi_vs_ga(df):
         df_ = df.loc[(zones, zones), :]
         df_.index = df_.index.remove_unused_levels()
 
-        # start_time = timeit.default_timer()
-        # obj, _ = models.model_a(df_, p)
-        # results.loc['Gurobi', n_zones, p] = obj, timeit.default_timer() - start_time
+        start_time = timeit.default_timer()
+        obj, _ = models.model_a(df_, p)
+        results.loc['Gurobi', n_zones, p] = obj, timeit.default_timer() - start_time
 
         start_time = timeit.default_timer()
         obj, _, _ = models.model_a_ga(df_, p)

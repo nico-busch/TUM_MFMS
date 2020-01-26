@@ -20,8 +20,6 @@ def input_ny():
     df = pd.concat((pd.read_csv(base + f, usecols=cols[f], parse_dates=cols[f][:2], date_parser=date_parser)
                    .rename(columns=dict(zip(cols[f], new_names))) for f in files))
 
-    print('hi')
-
     df = df.dropna()
     df['ground_travel_time'] = df['dropoff_datetime'] - df['pickup_datetime']
     df = df.groupby(['pickup_location', 'dropoff_location']).agg({'ground_travel_time': [pd.Series.mean, 'count']})
