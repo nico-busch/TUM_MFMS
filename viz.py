@@ -1,8 +1,12 @@
 import pandas as pd
+import numpy as np
+import models
 from bokeh.io import output_file
 from bokeh.plotting import figure, show
 from bokeh.models import GeoJSONDataSource, LinearColorMapper, ColorBar, NumeralTickFormatter, HoverTool
 from bokeh.tile_providers import get_provider, Vendors
+import seaborn as sns
+import matplotlib.pyplot as plt # due to release problems older version is needed -> downgrade to 3.1.0
 
 def viz_zones(df, gdf):
 
@@ -77,9 +81,164 @@ def viz_hubs(df, gdf, hubs):
     hover = HoverTool(renderers=[zones],
                       tooltips=[('Borough', '@borough'),
                                 ('Zone', '@zone'),
+                                ('Zone', '@zone'),
                                 ('Total Vehicle Hours', '@vehicle_hrs{int}')])
     p.add_tools(hover)
     p.add_layout(color_bar, 'below')
     p.hover.point_policy = "follow_mouse"
 
     show(p)
+
+def viz_connection_heatmap(n_hubs, n_zones=263, alpha=0, beta=1):
+    # run Genetic Algorithm
+    data_ = prepare_data(n_zones)
+    _, _, df = models.model_a_ga(data_, n_hubs,  alpha=alpha, beta=beta)
+
+    # create data
+    df_hubs = trip_count_df(df)
+
+    # plot heatmap
+    df_ = df_hubs.copy()
+    df_['trip_count'] = (df_['trip_count'] / 1000).astype(int)
+    df_ = df_.reset_index().pivot(columns='destination', index='origin', values='trip_count')
+    df_ = df_.fillna(0)
+    df_ = df_.astype(int)
+    mask = np.ones_like(df_)
+
+    mask[np.tril_indices_from(df_)] = False
+
+    fig, ax = plt.subplots(1, 1, figsize = (15, 15))
+    sns.heatmap(df_, cmap="YlGnBu", annot=True, fmt='', mask=mask, square=True, linewidths=1,
+                cbar_kws={'label': 'Number of trips [k]'})
+    ax.set_ylabel('')
+    ax.set_xlabel('')
+    plt.show()
+
+def viz_hub_importance(n_hubs, n_zones=263, alpha=0, beta=1):
+    # run Genetic Algorithm
+    data_ = prepare_data(n_zones)
+    _, hubs, df = models.model_a_ga(data_, n_hubs,  alpha=alpha, beta=beta)
+
+    # create data
+    df_hubs = trip_count_df(df)
+    df_ = hub_importance(hubs, df_hubs)
+
+    # donut plot
+    fig, ax = plt.subplots(1, 1, figsize=(15, 15))
+    df_ = df_.drop(columns='hubs_')
+    ax = df_.plot.bar(rot=0, cmap="Set3")
+    ax.set_ylabel('Number of trips per month [k]')
+    ax.set_xlabel('')
+    ax.get_legend().remove()
+    plt.show()
+
+    '''
+    fig, ax = plt.subplots(1, 1, figsize = (15, 15))
+    circle = plt.Circle((0, 0), 0.7, color='white')
+    ax.pie(df_['trip_count'], labels=df_['hubs_'], wedgeprops={'linewidth': 7, 'edgecolor': 'white'})
+    ax.add_artist(circle)
+    #axs[k, l].set_title('Number of hubs: ' + str(h_[count_ - 1]))
+    '''
+    plt.show()
+
+def viz_hub_utilization(n_hubs, n_zones=263, alpha=0, beta=1):
+
+    data_ = prepare_data(n_zones)
+
+    df_total = pd.DataFrame(columns=['trips_per_hub', 'trip_type', 'trip_count', 'p', 'percentage'])
+    df_total_2 = pd.DataFrame(columns=['p', 'trips_per_hub'])
+
+    for i in range(n_hubs + 1):
+        if (i >= 2):
+
+            # run Genetic Algorithm
+            _, hubs, df = models.model_a_ga(data_, i, alpha=alpha, beta=beta)
+
+            # adding trip transfer types information to df
+            df['trip_type'] = 'non_air'
+            for index, row in df.dropna().iterrows():
+                tmp = tuple(row['hubs'])
+                if ((tmp[0] == index[0] and tmp[1] == index[1]) or (tmp[0] == index[1] and tmp[1] == index[0])):
+                    df.loc[index, 'trip_type'] = 'direct'
+                elif (tmp[0] == index[0] or tmp[1] == index[1] or tmp[1] == index[0] or tmp[0] == index[1]):
+                    df.loc[index, 'trip_type'] = 'one_transfer'
+                else:
+                    df.loc[index, 'trip_type'] = 'two_transfer'
+
+            un = np.array(['direct', 'one_transfer', 'two_transfer'])
+            df_ = pd.DataFrame(data=un.flatten(), columns=['trip_type'])
+            df_['trip_count'] = np.NAN
+            df_['p'] = i
+            df_['percentage'] = df[df['trip_type'] != 'non_air']['n_trips'].sum()
+            count = 0
+            for ii in un:
+                df_.loc[count, 'trip_count'] = df[df['trip_type'] == ii]['n_trips'].sum()
+                df_.loc[count, 'percentage'] = df_.loc[count, 'trip_count'] / df_.loc[count, 'percentage']
+                df_.loc[count, 'trips_per_hub'] = df[df['trip_type'] != 'non_air']['n_trips'].sum() / i
+                count = count + 1
+            df_total = df_total.append(df_, ignore_index=True)
+
+
+            tph = df[df['trip_type'] != 'non_air']['n_trips'].sum() / i
+            df2 = pd.DataFrame([[i, tph]], columns=['p', 'trips_per_hub'])
+            df_total_2 = df_total_2.append(df2, ignore_index=True)
+
+
+    # plot
+
+    print(df_total)
+
+    colors = ["#006D2C", "#31A354", "#74C476"]
+    pivot_df = df_total.pivot(index='p', columns='trip_type', values='trip_count')
+    pivot_df.plot.bar(stacked=True, color=colors)
+
+    df_total_2 = df_total_2.set_index('p')
+    df_total_2.plot(style='.-')
+
+    plt.show()
+
+#-----------------------------------------------------------------------------------------------------------------------
+# Supportive functions
+
+def prepare_data(n_zones):
+    # data preperation
+    data = pd.read_pickle('data/trips_ny.pkl')
+    total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
+            (data['ground_travel_time'] * data['n_trips']).groupby(['dropoff_location']).sum()
+    zones = total.nlargest(n_zones).index.sort_values()
+    data_ = data.loc[(zones, zones), :]
+    data_.index = data_.index.remove_unused_levels()
+    return data_.reindex(pd.MultiIndex.from_product([zones, zones], names=data_.index.names), fill_value=0)
+
+def trip_count_df(df):
+    # create df_hubs for counting all trips going through a hub connection
+    un = df['hubs'].unique()
+    un = np.delete(un, 0)  # delete nan value
+    df_hubs = pd.DataFrame(data=un.flatten(), columns=['hubs'])
+    df_hubs = df_hubs.set_index('hubs')
+    df_hubs['trip_count'] = 0
+    for index, row in df_hubs.iterrows():
+        df_hubs.loc[index, 'trip_count'] = df.loc[df['hubs'] == tuple(index)]['n_trips'].sum()
+    df_hubs.index = pd.MultiIndex.from_tuples(df_hubs.index, names=('origin', 'destination'))
+    df_hubs.index = df_hubs.index.drop_duplicates(keep='first')
+
+    # aggregate both demand direction of a hub connection to one single value
+    tmp = df_hubs.copy()
+    existing_indexes = []
+    for index, row in df_hubs.iterrows():
+        df_hubs.loc[index] = tmp.loc[index] + tmp.loc[(index[1], index[0])] + 0
+    return df_hubs
+
+def hub_importance(hubs, df_hubs):
+    # create dataframe representing the hub importance (number of trips)
+    df_ = pd.DataFrame(data=hubs.flatten(), columns=['hubs'])
+    df_['trip_count'] = 0
+    df_['hubs_'] = df_['hubs']
+    df_ = df_.set_index('hubs')
+    for i in hubs:
+        for j in hubs:
+            if (i != j):
+                df_.loc[(i), 'trip_count'] = df_.loc[(i), 'trip_count'] + df_hubs.loc[(i, j), 'trip_count']
+
+    df_['trip_count'] = df_['trip_count'] / 1000
+    return df_.sort_values(by=['trip_count'])
