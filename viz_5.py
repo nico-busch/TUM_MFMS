@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 '''
-    Heatmap showing the demand (number of trips) from one hub to another aggregated from both directions
+    Proportion of each air trip type for different number of hubs
 '''
 
 # data preperation
-n_zones = 263
-n_hubs = 10
+n_zones = 150
+n_hubs = 5
 data = pd.read_pickle('data/trips_ny.pkl')
 total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
         (data['ground_travel_time'] * data['n_trips']).groupby(['dropoff_location']).sum()
@@ -29,6 +29,21 @@ for i in range(n_hubs + 1):
 
         # run Genetic Algorithm
         _, hubs, df = models.model_a_ga(data_, i, alpha=5/60, beta=1)
+
+        df['travel_time'] = df['travel_time'] / pd.to_timedelta(1, 'h')
+        data_['ground_travel_time'] = data_['ground_travel_time'] / pd.to_timedelta(1, 'h')
+        df['time_savings'] = data_['ground_travel_time'] - df['travel_time']
+        df[df['time_savings'] <= 0] = 0
+        df['time_savings_percentage'] = df['time_savings']/data_['ground_travel_time']
+        print(df)
+        print(data_)
+
+        df.to_pickle('results/df_test_oli.pkl')
+        plt.scatter(df['time_savings_percentage'], df['time_savings'])
+        plt.show()
+
+        exit()
+
 
         # adding trip transfer types information to df
         df['trip_type'] = 'non_air'
@@ -64,6 +79,8 @@ plt.show()
 df_total.to_pickle('results/df_total.pkl')
 
 exit()
+
+
 
 
 
