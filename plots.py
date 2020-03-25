@@ -1,6 +1,7 @@
 import pandas as pd
 from matplotlib import ticker
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def millions(x, pos):
@@ -47,4 +48,57 @@ def plot_gurobi_vs_ga(results):
     ax.set_xlabel('number of zones')
     ax.set_ylabel('runtime [s]')
     ax.legend()
+    plt.show()
+
+def plot_time_savings_histogram(n_hubs=[3, 5, 7, 10], n_zones=263, alpha=5 / 60, beta=1):
+    # data preperation
+    data = pd.read_pickle('data/trips_ny.pkl')
+    total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
+            (data['ground_travel_time'] * data['n_trips']).groupby(['dropoff_location']).sum()
+    zones = total.nlargest(n_zones).index.sort_values()
+    data_ = data.loc[(zones, zones), :]
+    data_.index = data_.index.remove_unused_levels()
+    data_ = data_.reindex(pd.MultiIndex.from_product([zones, zones], names=data_.index.names), fill_value=0)
+
+    '''
+    # Only uncomment if new data calculation is wanted (~20min)
+
+    for i in n_hubs:
+        _, hubs, df = models.model_a_ga(data_, i, alpha=alpha, beta=beta)
+        temp = (data_['ground_travel_time'] - df['travel_time']).loc[df['hubs'].notna()]
+        temp[temp > pd.to_timedelta(3, 'h')] = pd.to_timedelta(0, 'h')
+        temp[temp <= pd.to_timedelta(0, 'h')] = np.NaN
+        temp = temp.dropna()
+        savings = (temp / pd.to_timedelta(1, 'm')).rename('savings')
+        savings.to_frame().to_pickle('results/histogram_data_'+str(i)+'_hubs.pkl')
+    '''
+
+    # histogram
+    ncols = 2
+    nrows = 2
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+    counter = 0
+    title_c = 0
+    for i in range(nrows):
+        for j in range(ncols):
+            ax = axes[i][j]
+            df = pd.read_pickle('results/histogram_data_' + str(n_hubs[counter]) + '_hubs.pkl')
+            # Plot when we have data
+            if counter < 6:
+                df = df.merge(data_['n_trips'], how='left', left_index=True, right_index=True)
+                ax.hist(df['savings'], color='skyblue', alpha=0.8, label='{}'.format(n_hubs[counter]),
+                        bins=range(0, 130, 2), weights=df.n_trips)
+                ax.set_xlabel('Time savings [min]')
+                ax.set_ylabel('Number of trips')
+                ax.set_title('' + str(n_hubs[title_c]) + ' hubs')
+                title_c = title_c + 1
+                ax.set_ylim([0, 500000])
+                ax.set_xlim([0, 60])
+                start, end = ax.get_xlim()
+                ax.xaxis.set_ticks(np.arange(0, end, 10))
+            # Remove axis when we no longer have data
+            else:
+                ax.set_axis_off()
+            counter += 1
+    fig.tight_layout()
     plt.show()

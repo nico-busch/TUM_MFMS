@@ -197,7 +197,7 @@ def viz_hub_utilization(n_hubs, n_zones=263, alpha=0, beta=1):
 
     plt.show()
 
-def viz_time_savings_boxplot(n_hubs=[3,5,7,9], n_zones=263, alpha=0, beta=1):
+def viz_time_savings_histogram(n_hubs=[3,5,7,10], n_zones=263, alpha=5/60, beta=1):
     # data preperation
     data = pd.read_pickle('data/trips_ny.pkl')
     total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
@@ -206,67 +206,42 @@ def viz_time_savings_boxplot(n_hubs=[3,5,7,9], n_zones=263, alpha=0, beta=1):
     data_ = data.loc[(zones, zones), :]
     data_.index = data_.index.remove_unused_levels()
     data_ = data_.reindex(pd.MultiIndex.from_product([zones, zones], names=data_.index.names), fill_value=0)
-    '''
-    time_savings_data = pd.DataFrame(columns=n_hubs)
-    for i in n_hubs:
-        _, hubs, df = models.model_a_ga(data_, 9, alpha=alpha, beta=beta)
-        temp = (data_['ground_travel_time'] - df['travel_time']).loc[df['hubs'].notna()]
-        temp[temp > pd.to_timedelta(3, 'h')] = pd.to_timedelta(0, 'h')
-        temp[temp <= pd.to_timedelta(0, 'h')] = np.NaN
-        temp = temp.dropna()
-        savings = (temp / pd.to_timedelta(1, 'm')).rename('savings')
-        time_savings_data[''+str(i)] = savings
-        time_savings_data.to_pickle('results/time_saving_data.pkl')
-    '''
-    time_savings_data = pd.read_pickle('results/histogram_data.pkl')
-    df =  time_savings_data
-    df.boxplot()
-    plt.xlabel('Number of hubs')
-    plt.ylabel('Time savings [min]')
-    plt.show()
 
-def viz_time_savings_histogram(n_hubs=[3,5,7,9], n_zones=263, alpha=5/60, beta=1):
-    # data preperation
-    data = pd.read_pickle('data/trips_ny.pkl')
-    total = (data['ground_travel_time'] * data['n_trips']).groupby(['pickup_location']).sum() + \
-            (data['ground_travel_time'] * data['n_trips']).groupby(['dropoff_location']).sum()
-    zones = total.nlargest(n_zones).index.sort_values()
-    data_ = data.loc[(zones, zones), :]
-    data_.index = data_.index.remove_unused_levels()
-    data_ = data_.reindex(pd.MultiIndex.from_product([zones, zones], names=data_.index.names), fill_value=0)
     '''
-    histogram_time_savings_data = pd.DataFrame(columns=n_hubs)
+    # Only uncomment if new data calculation is wanted (~20min)
+    
     for i in n_hubs:
-        _, hubs, df = models.model_a_ga(data_, 9, alpha=alpha, beta=beta)
+        _, hubs, df = models.model_a_ga(data_, i, alpha=alpha, beta=beta)
         temp = (data_['ground_travel_time'] - df['travel_time']).loc[df['hubs'].notna()]
         temp[temp > pd.to_timedelta(3, 'h')] = pd.to_timedelta(0, 'h')
         temp[temp <= pd.to_timedelta(0, 'h')] = np.NaN
         temp = temp.dropna()
         savings = (temp / pd.to_timedelta(1, 'm')).rename('savings')
-        histogram_time_savings_data[''+str(i)] = savings
-        histogram_time_savings_data.to_pickle('results/histogram_data.pkl')
+        savings.to_frame().to_pickle('results/histogram_data_'+str(i)+'_hubs.pkl')
     '''
-    histogram_time_savings_data = pd.read_pickle('results/histogram_data.pkl')
-    df =  histogram_time_savings_data
 
     # histogram
     ncols = 2
-    nrows = int(np.ceil(len(df.columns) / (1.0 * ncols)))
+    nrows = 2
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
     counter = 0
     title_c = 0
     for i in range(nrows):
         for j in range(ncols):
             ax = axes[i][j]
+            df = pd.read_pickle('results/histogram_data_' + str(n_hubs[counter]) + '_hubs.pkl')
             # Plot when we have data
-            if counter < len(df.columns):
-                ax.hist(df[df.columns[counter]], color='skyblue', alpha=0.8, label='{}'.format(df.columns[counter]))
+            if counter < 6:
+                df = df.merge(data_['n_trips'], how='left', left_index=True, right_index=True)
+                ax.hist(df['savings'], color='skyblue', alpha=0.8, label='{}'.format(n_hubs[counter]), bins=range(0,130,2), weights=df.n_trips)
                 ax.set_xlabel('Time savings [min]')
                 ax.set_ylabel('Number of trips')
                 ax.set_title('' + str(n_hubs[title_c]) + ' hubs')
                 title_c = title_c + 1
-                ax.set_ylim([0, 800])
-                ax.set_xlim([0, 130])
+                ax.set_ylim([0, 500000])
+                ax.set_xlim([0, 60])
+                start, end = ax.get_xlim()
+                ax.xaxis.set_ticks(np.arange(0, end, 10))
             # Remove axis when we no longer have data
             else:
                 ax.set_axis_off()
@@ -319,3 +294,22 @@ def hub_importance(hubs, df_hubs):
 
     df_['trip_count'] = df_['trip_count'] / 1000
     return df_.sort_values(by=['trip_count'])
+
+
+
+'''
+
+    Kann man löschen
+    
+    bins = range(0,130,10)
+    #labels = range(0,130,2)
+    df['binned_3_hubs'] = pd.cut(df['3_hubs'], bins=bins)
+
+    df['binned_3_hubs'] = df['binned_3_hubs'].to_frame().applymap(str)
+
+    plt.bar(df['binned_3_hubs'],df['n_trips'])
+    plt.show()
+
+    print(df)
+    exit()
+'''
